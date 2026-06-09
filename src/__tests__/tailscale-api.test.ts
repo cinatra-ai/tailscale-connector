@@ -9,7 +9,7 @@ import {
 // Tailscale REST API client tests.
 //
 // Convention (per repo precedent in
-// `packages/connector-media-feeds/src/__tests__/feed.test.ts:5`):
+// `@cinatra-ai/media-feeds-connector src/__tests__/feed.test.ts:5`):
 // directly mock `globalThis.fetch` with vi.fn() and restore in
 // afterEach. No msw, no fetch-mock, no module re-import games.
 // ---------------------------------------------------------------------------

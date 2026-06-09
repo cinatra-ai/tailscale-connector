@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Test output (vitest --coverage)
+coverage/
+
+# Pack output (`npm pack` — CI validates the dry run)
+*.tgz
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

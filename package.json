@@ -4,6 +4,11 @@
   "license": "Apache-2.0",
   "type": "module",
   "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./register": "./src/register.ts",
+    "./setup-page": "./src/setup-page.tsx"
+  },
   "types": "src/index.ts",
   "scripts": {
     "test": "vitest"
@@ -32,6 +37,11 @@
     "apiVersion": "cinatra.ai/v1",
     "kind": "connector",
     "displayName": "Tailscale",
-    "dependencies": []
+    "dependencies": [],
+    "serverEntry": "./register",
+    "requestedHostPorts": [
+      "capabilities"
+    ],
+    "sdkAbiRange": "^2"
   }
 }

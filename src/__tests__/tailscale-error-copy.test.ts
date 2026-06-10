@@ -97,6 +97,15 @@ describe("tailscaleConnectFailureNotice (save path)", () => {
     expect(unrecognized.body).toBe(unknown.body);
     expect(missing.body).not.toContain(RAW_INTERNAL_DETAIL);
   });
+
+  it("never resolves Object prototype members for hostile/odd codes", () => {
+    const fallback = tailscaleConnectFailureNotice({ error: "x" }).body;
+    for (const code of ["constructor", "toString", "hasOwnProperty", "__proto__"]) {
+      const notice = tailscaleConnectFailureNotice({ error: "x", code });
+      expect(typeof notice.body).toBe("string");
+      expect(notice.body).toBe(fallback);
+    }
+  });
 });
 
 describe("tailscaleDisconnectFailureNotice (disconnect path)", () => {

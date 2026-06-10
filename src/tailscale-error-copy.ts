@@ -31,27 +31,40 @@ export type TailscaleFailureNotice = {
  * `tailscale.unknown` ("Tailscale connection import failed: …"), so the
  * unknown/fallback copy points at the token as the most likely cause.
  */
-const TAILSCALE_CONNECT_ERROR_COPY: Record<string, string> = {
-  "tailscale.invalid_client":
-    "Tailscale rejected the API access token. Generate a new token and make sure its Tags scope matches the tag you entered.",
-  "tailscale.scope_denied":
-    "The API access token is missing the required permissions. Generate a new token in the Tailscale admin console with the needed scopes.",
-  "tailscale.tag_denied":
-    "Tailscale rejected the tag. Add a tagOwners entry for it in your tailnet policy file and make sure the token's Tags scope includes it.",
-  "tailscale.rate_limited":
-    "Tailscale is rate-limiting requests right now. Wait a few seconds and try again.",
-  "tailscale.network":
-    "Couldn't reach the Tailscale API. Check your network connection and try again.",
-  "tailscale.nango_unconfigured":
-    "Configure the connection service (Nango) first so Tailscale credentials can be stored.",
-  "tailscale.nango_writeback":
-    "The token couldn't be stored reliably, so the connection was rolled back. Try connecting again.",
-  "tailscale.unknown":
-    "Unable to connect Tailscale. Check that the API access token is valid and try again — the server logs have details.",
-};
-
 const TAILSCALE_CONNECT_ERROR_FALLBACK =
-  TAILSCALE_CONNECT_ERROR_COPY["tailscale.unknown"];
+  "Unable to connect Tailscale. Check that the API access token is valid and try again — the server logs have details.";
+
+const TAILSCALE_CONNECT_ERROR_COPY: ReadonlyMap<string, string> = new Map([
+  [
+    "tailscale.invalid_client",
+    "Tailscale rejected the API access token. Generate a new token and make sure its Tags scope matches the tag you entered.",
+  ],
+  [
+    "tailscale.scope_denied",
+    "The API access token is missing the required permissions. Generate a new token in the Tailscale admin console with the needed scopes.",
+  ],
+  [
+    "tailscale.tag_denied",
+    "Tailscale rejected the tag. Add a tagOwners entry for it in your tailnet policy file and make sure the token's Tags scope includes it.",
+  ],
+  [
+    "tailscale.rate_limited",
+    "Tailscale is rate-limiting requests right now. Wait a few seconds and try again.",
+  ],
+  [
+    "tailscale.network",
+    "Couldn't reach the Tailscale API. Check your network connection and try again.",
+  ],
+  [
+    "tailscale.nango_unconfigured",
+    "Configure the connection service (Nango) first so Tailscale credentials can be stored.",
+  ],
+  [
+    "tailscale.nango_writeback",
+    "The token couldn't be stored reliably, so the connection was rolled back. Try connecting again.",
+  ],
+  ["tailscale.unknown", TAILSCALE_CONNECT_ERROR_FALLBACK],
+]);
 
 /**
  * Notice for a failed `saveTailscaleConnectionAction` result. Maps the typed
@@ -60,9 +73,12 @@ const TAILSCALE_CONNECT_ERROR_FALLBACK =
 export function tailscaleConnectFailureNotice(
   result: TailscaleFailedActionResult,
 ): TailscaleFailureNotice {
+  // Map lookup (not a plain object index) so an unrecognized code can never
+  // resolve a prototype-chain member — anything unmapped falls back.
   const body =
-    (result.code !== undefined && TAILSCALE_CONNECT_ERROR_COPY[result.code]) ||
-    TAILSCALE_CONNECT_ERROR_FALLBACK;
+    (result.code !== undefined
+      ? TAILSCALE_CONNECT_ERROR_COPY.get(result.code)
+      : undefined) ?? TAILSCALE_CONNECT_ERROR_FALLBACK;
   return { title: "Tailscale connection failed", body };
 }
 

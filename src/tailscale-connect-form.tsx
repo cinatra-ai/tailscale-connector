@@ -13,6 +13,10 @@ import {
   clearTailscaleConnectionAction,
   saveTailscaleConnectionAction,
 } from "./tailscale-setup-actions";
+import {
+  tailscaleConnectFailureNotice,
+  tailscaleDisconnectFailureNotice,
+} from "./tailscale-error-copy";
 
 type TailscaleStatusProp = {
   connected: boolean;
@@ -32,23 +36,27 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
   const [apiKey, setApiKey] = useState("");
   const [cloneTag, setCloneTag] = useState(defaultCloneTag);
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  // Friendly copy only — failed action results carry raw server-side error
+  // strings (returned, not thrown, so prod masking never applies); the raw
+  // `result.error` must never reach the alert or a toast.
+  const [friendlyError, setFriendlyError] = useState<string | null>(null);
 
   const canSubmit =
     apiKey.trim().length > 0 && cloneTag.trim().startsWith("tag:");
 
   function handleConnect() {
-    setError(null);
+    setFriendlyError(null);
     startTransition(async () => {
       const result = await saveTailscaleConnectionAction({
         apiKey: apiKey.trim(),
         cloneTag: cloneTag.trim(),
       });
       if (!result.ok) {
-        setError(result.error);
+        const notice = tailscaleConnectFailureNotice(result);
+        setFriendlyError(notice.body);
         addNotification({
-          title: "Tailscale connection failed",
-          body: result.error,
+          title: notice.title,
+          body: notice.body,
           kind: "error",
         });
         return;
@@ -66,14 +74,15 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
   }
 
   function handleDisconnect() {
-    setError(null);
+    setFriendlyError(null);
     startTransition(async () => {
       const result = await clearTailscaleConnectionAction();
       if (!result.ok) {
-        setError(result.error);
+        const notice = tailscaleDisconnectFailureNotice(result);
+        setFriendlyError(notice.body);
         addNotification({
-          title: "Tailscale disconnect failed",
-          body: result.error,
+          title: notice.title,
+          body: notice.body,
           kind: "error",
         });
         return;
@@ -194,9 +203,9 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
             </Field>
           </>
         )}
-        {error ? (
+        {friendlyError ? (
           <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{friendlyError}</AlertDescription>
           </Alert>
         ) : null}
       </CardContent>

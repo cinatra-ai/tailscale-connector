@@ -34,13 +34,18 @@ export async function saveTailscaleConnectionAction(input: {
     revalidatePath("/configuration/development");
     return { ok: true, status };
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Tailscale connection save failed.";
     const code =
       err && typeof err === "object" && "code" in err && typeof (err as { code: unknown }).code === "string"
         ? (err as { code: string }).code
         : undefined;
-    return { ok: false, error: message, code };
+    // Returned (not thrown) errors are serialized to the browser verbatim —
+    // prod masking never applies — so the raw `err.message` (which wraps
+    // upstream Nango/Tailscale detail) must not ride along in the payload.
+    // Raw detail stays server-side; the client gets only the typed `code`
+    // (mapped to friendly copy in tailscale-error-copy.ts) plus a sanitized
+    // generic string.
+    console.error("[connector-tailscale] saveTailscaleConnectionAction failed", { code }, err);
+    return { ok: false, error: "Tailscale connection save failed.", code };
   }
 }
 
@@ -54,10 +59,10 @@ export async function clearTailscaleConnectionAction(): Promise<
   try {
     await clearTailscaleConnection();
   } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Tailscale disconnect failed.",
-    };
+    // Same sanitization as the save path: raw detail stays in server logs,
+    // never in the serialized action result.
+    console.error("[connector-tailscale] clearTailscaleConnectionAction failed", err);
+    return { ok: false, error: "Tailscale disconnect failed." };
   }
   revalidatePath("/connectors/cinatra-ai/tailscale-connector/setup");
   revalidatePath("/connectors");

@@ -18,6 +18,7 @@ import type {
   HostNangoConnectionStorageService,
 } from "@cinatra-ai/sdk-extensions";
 import { registerTailscaleConnector, type TailscaleConnectorDeps } from "./deps";
+import { getTailscaleConnectionStatus, getTailscaleFunnelUrlPreview } from "./index";
 
 const PACKAGE_NAME = "@cinatra-ai/tailscale-connector";
 
@@ -65,4 +66,18 @@ export function register(ctx: ExtensionHostContext): void {
   };
 
   registerTailscaleConnector(deps);
+
+  // Lazy/guarded host-access cutover: the host's development/tunnel
+  // surface resolves this connector's local status reads from the capability
+  // registry instead of value-importing the package. Pure local-settings
+  // reads (no network), so exposing them as a capability impl is safe at
+  // activation; absence of this provider degrades the host UI to its
+  // "not connected" state.
+  ctx.capabilities.registerProvider("dev-tunnel-status", {
+    packageName: PACKAGE_NAME,
+    impl: {
+      getConnectionStatus: () => getTailscaleConnectionStatus(),
+      getFunnelUrlPreview: () => getTailscaleFunnelUrlPreview(),
+    },
+  });
 }

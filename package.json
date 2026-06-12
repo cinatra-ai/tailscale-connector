@@ -52,6 +52,10 @@
     "requestedHostPorts": [
       "capabilities"
     ],
-    "sdkAbiRange": "^2"
+    "sdkAbiRange": "^2",
+    "devCliModules": {
+      "tailscale-api": "./src/tailscale-api.mjs",
+      "tailscale-hostname": "./src/tailscale-hostname.mjs"
+    }
   }
 }

@@ -18,6 +18,7 @@ import {
   registerTailscaleConnector,
   _resetTailscaleDepsForTests,
 } from "../index";
+import { TAILSCALE_TOKEN_MAX_AGE_DAYS } from "../tailscale-token-expiry.mjs";
 
 const TOKEN = "tskey-api-VALID_TOKEN_xyz";
 const PROVIDER_KEY = "cinatra-tailscale";
@@ -71,6 +72,26 @@ describe("saveTailscaleConnection read-back verification", () => {
     expect(deleteConnection).not.toHaveBeenCalled();
     expect(clearConnectionRecords).not.toHaveBeenCalled();
     expect((CONFIG_STORE.tailscale as { connected?: boolean }).connected).toBe(true);
+  });
+
+  it("stamps the token set-date and derives a 90-day expiry window", async () => {
+    getCredentials.mockResolvedValueOnce({ apiKey: TOKEN });
+
+    const result = await saveTailscaleConnection({ apiKey: TOKEN });
+
+    // The return value and the persisted row both carry the new fields.
+    const persisted = CONFIG_STORE.tailscale as {
+      tokenSetAt?: string;
+      tokenExpiresAt?: string;
+    };
+    expect(result.tokenSetAt).toBe(result.lastValidatedAt);
+    expect(persisted.tokenSetAt).toBe(result.tokenSetAt);
+    expect(result.tokenExpiresAt).toBe(persisted.tokenExpiresAt);
+
+    // Expiry is exactly the 90-day max age out from the set-date.
+    const setAtMs = new Date(result.tokenSetAt as string).getTime();
+    const expiryMs = new Date(result.tokenExpiresAt as string).getTime();
+    expect(expiryMs - setAtMs).toBe(TAILSCALE_TOKEN_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
   });
 
   it("non-empty but DIFFERENT read-back is a mismatch → full rollback + throw", async () => {

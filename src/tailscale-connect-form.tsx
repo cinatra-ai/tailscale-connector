@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Hash, KeyRound, ShieldCheck } from "lucide-react";
+import { Clock, Hash, KeyRound, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
@@ -17,13 +17,43 @@ import {
   tailscaleConnectFailureNotice,
   tailscaleDisconnectFailureNotice,
 } from "./tailscale-error-copy";
+import { describeTailscaleTokenExpiry } from "./tailscale-token-expiry.mjs";
 
 type TailscaleStatusProp = {
   connected: boolean;
   tailnet?: string;
   cloneTag?: string;
   lastValidatedAt?: string;
+  tokenSetAt?: string;
+  tokenExpiresAt?: string;
 };
+
+/**
+ * Inline copy for the token-expiry reminder. Mirrors the connector's existing
+ * inline-guidance pattern (amber `warning` as expiry approaches, red
+ * `destructive` once lapsed) so a stale token surfaces in the UI BEFORE the
+ * background clone auto-tunnel silently stops working.
+ */
+function tokenExpiryNotice(expiresAt: string | undefined): {
+  variant: "warning" | "destructive";
+  body: string;
+} | null {
+  const { status, daysRemaining } = describeTailscaleTokenExpiry(expiresAt);
+  if (status === "expired") {
+    return {
+      variant: "destructive",
+      body: "This Tailscale API token has expired. Clone auto-tunnels can no longer mint auth-keys — generate a fresh token and reconnect below.",
+    };
+  }
+  if (status === "warning" && typeof daysRemaining === "number") {
+    const dayLabel = daysRemaining === 1 ? "1 day" : `${daysRemaining} days`;
+    return {
+      variant: "warning",
+      body: `This Tailscale API token expires in ${dayLabel}. Generate a fresh token and reconnect before then to keep clone auto-tunnels working.`,
+    };
+  }
+  return null;
+}
 
 type Props = {
   initialStatus: TailscaleStatusProp;
@@ -43,6 +73,10 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
 
   const canSubmit =
     apiKey.trim().length > 0 && cloneTag.trim().startsWith("tag:");
+
+  const expiryNotice = status.connected
+    ? tokenExpiryNotice(status.tokenExpiresAt)
+    : null;
 
   function handleConnect() {
     setFriendlyError(null);
@@ -101,11 +135,25 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
       <CardContent className="flex flex-col gap-4">
         {status.connected ? (
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Badge className="bg-success/15 text-success">
                 <ShieldCheck className="mr-1 h-3 w-3" />
                 Connected
               </Badge>
+              {expiryNotice ? (
+                <Badge
+                  variant={
+                    expiryNotice.variant === "destructive"
+                      ? "destructive"
+                      : "warning"
+                  }
+                >
+                  <Clock className="mr-1 h-3 w-3" />
+                  {expiryNotice.variant === "destructive"
+                    ? "Token expired"
+                    : "Token expiring"}
+                </Badge>
+              ) : null}
             </div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
               {status.tailnet ? (
@@ -140,7 +188,23 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
                   </dd>
                 </>
               ) : null}
+              {status.tokenExpiresAt ? (
+                <>
+                  <dt className="text-muted-foreground">Token expires</dt>
+                  <dd className="text-xs text-muted-foreground">
+                    <time dateTime={status.tokenExpiresAt}>
+                      {new Date(status.tokenExpiresAt).toLocaleDateString()}
+                    </time>
+                  </dd>
+                </>
+              ) : null}
             </dl>
+            {expiryNotice ? (
+              <Alert variant={expiryNotice.variant === "destructive" ? "destructive" : "warning"}>
+                <Clock aria-hidden="true" />
+                <AlertDescription>{expiryNotice.body}</AlertDescription>
+              </Alert>
+            ) : null}
           </div>
         ) : (
           <>

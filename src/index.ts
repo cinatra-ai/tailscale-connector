@@ -19,6 +19,7 @@ import {
   composeTailscaleFunnelUrl,
   deriveDevTailscaleHostname,
 } from "./tailscale-hostname.mjs";
+import { computeTailscaleTokenExpiry } from "./tailscale-token-expiry.mjs";
 
 // ---------------------------------------------------------------------------
 // Cinatra Tailscale connector using Nango API_KEY credential storage.
@@ -47,6 +48,13 @@ import {
 //         per-clone auth-keys. Operator-configurable (defaults to
 //         `tag:cinatra-clone`). The CLI reads this from the clone DB.
 //       - `lastValidatedAt: string`
+//       - `tokenSetAt: string` — when the API token was last saved. Tailscale
+//         API tokens live at most 90 days; we can't introspect a bare token's
+//         real expiry by value alone, so we persist the set-date and derive a
+//         conservative 90-day expiry window for the inline expiry reminder.
+//       - `tokenExpiresAt: string` — derived `tokenSetAt + 90d`. Persisted so
+//         the read surface needs no recompute and a future host that captures
+//         the token's real `expires` can overwrite it.
 //
 // CLI read path: GET /connection/cinatra-tailscale → `credentials.apiKey`.
 // The CLI also reads `connector_config:tailscale.cloneTag` from the clone
@@ -63,12 +71,18 @@ export type TailscaleConnectionStatus = {
   tailnet?: string;
   cloneTag?: string;
   lastValidatedAt?: string;
+  /** When the API token was last saved (basis for the 90-day expiry window). */
+  tokenSetAt?: string;
+  /** Derived `tokenSetAt + 90d` — drives the inline expiry reminder. */
+  tokenExpiresAt?: string;
 };
 
 type TailscaleLocalSettings = {
   tailnet?: string;
   cloneTag?: string;
   lastValidatedAt?: string;
+  tokenSetAt?: string;
+  tokenExpiresAt?: string;
   connected?: boolean;
 };
 
@@ -89,11 +103,21 @@ function writeLocalSettings(value: TailscaleLocalSettings) {
  */
 export function getTailscaleConnectionStatus(): TailscaleConnectionStatus {
   const settings = readLocalSettings();
+  // Derive `tokenExpiresAt` on read when only `tokenSetAt` was persisted, so
+  // connections saved before the expiry column existed still surface a window
+  // (and a future host that captures the token's real `expires` can persist
+  // `tokenExpiresAt` directly and have it win).
+  const tokenExpiresAt =
+    settings.tokenExpiresAt ??
+    computeTailscaleTokenExpiry(settings.tokenSetAt) ??
+    undefined;
   return {
     connected: settings.connected === true,
     tailnet: settings.tailnet,
     cloneTag: settings.cloneTag,
     lastValidatedAt: settings.lastValidatedAt,
+    tokenSetAt: settings.tokenSetAt,
+    tokenExpiresAt,
   };
 }
 
@@ -369,11 +393,16 @@ export async function saveTailscaleConnection(input: {
     }
   }
 
-  // Step 6 — mirror non-secret state to the local row.
+  // Step 6 — mirror non-secret state to the local row. Stamp the token's
+  // set-date and derive its conservative 90-day expiry window so the inline
+  // reminder has a real date to count down from.
+  const tokenExpiresAt = computeTailscaleTokenExpiry(now) ?? undefined;
   const next: TailscaleLocalSettings = {
     tailnet: resolvedTailnet,
     cloneTag,
     lastValidatedAt: now,
+    tokenSetAt: now,
+    tokenExpiresAt,
     connected: true,
   };
   writeLocalSettings(next);
@@ -383,6 +412,8 @@ export async function saveTailscaleConnection(input: {
     tailnet: resolvedTailnet,
     cloneTag,
     lastValidatedAt: now,
+    tokenSetAt: now,
+    tokenExpiresAt,
   };
 }
 

@@ -101,12 +101,6 @@ export function TailscaleConnectForm({
   // iframe and the session token is fetched and applied immediately after.
   function handleOAuthConnect() {
     setFriendlyError(null);
-    if (!oauthBaseUrl) {
-      const body = "Tailscale OAuth is unavailable: the connection service (Nango) Connect UI URL is not configured.";
-      setFriendlyError(body);
-      addNotification({ title: "Tailscale OAuth unavailable", body, kind: "error" });
-      return;
-    }
     setOauthConnecting(true);
     const tag = cloneTag.trim();
     void (async () => {
@@ -115,8 +109,11 @@ export function TailscaleConnectForm({
         const NangoMod = await import("@nangohq/frontend");
         const Nango = NangoMod.default;
         const nango = new Nango();
+        // Pass Connect-UI URLs only when configured (self-hosted Nango). When
+        // absent (hosted Nango Cloud), `@nangohq/frontend` defaults to its Cloud
+        // URLs — so we must NOT block on a missing baseURL.
         connectUI = nango.openConnectUI({
-          baseURL: oauthBaseUrl,
+          ...(oauthBaseUrl ? { baseURL: oauthBaseUrl } : {}),
           ...(oauthApiUrl ? { apiURL: oauthApiUrl } : {}),
           onEvent: (event: { type: string; payload?: { connectionId?: string } }) => {
             if (event.type === "connect" && event.payload?.connectionId) {

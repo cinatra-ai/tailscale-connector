@@ -120,6 +120,14 @@ describe("getTailscaleOAuthFrontendConfig", () => {
       providerConfigKey: OAUTH_PCK,
     });
   });
+
+  it("passes through an EMPTY host frontend config (hosted Nango Cloud) — the SDK defaults its URLs", () => {
+    getFrontendConfig.mockReturnValueOnce({} as { baseURL?: string; apiURL?: string });
+    const cfg = getTailscaleOAuthFrontendConfig();
+    // baseURL/apiURL absent ⇒ the form omits them ⇒ @nangohq/frontend uses its
+    // Nango Cloud defaults (the connector must NOT block on a missing baseURL).
+    expect(cfg).toEqual({ baseURL: undefined, apiURL: undefined, providerConfigKey: OAUTH_PCK });
+  });
 });
 
 describe("saveTailscaleOAuthConnection", () => {

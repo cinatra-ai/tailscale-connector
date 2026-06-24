@@ -66,8 +66,28 @@ const TAILSCALE_LOCAL_CONFIG_KEY = "tailscale" as const;
 const TAILSCALE_API_KEY_PROVIDER = "tailscale-api-key" as const;
 const DEFAULT_CLONE_TAG = "tag:cinatra-clone" as const;
 
+// OAuth-client mode (cinatra-ai/tailscale-connector#23, Design C). Ships
+// FLAG-OFF: the OAuth auth-mode toggle is hidden and the OAuth server actions
+// refuse until this server-side flag is enabled — so an operator can't create
+// an OAuth connection that stale clone workers (which can't proxy-mint) would
+// silently fail on. Activation flips this AFTER the new CLI is deployed +
+// canaried on every worker.
+const TAILSCALE_OAUTH_FLAG_ENV = "CINATRA_TAILSCALE_OAUTH_ENABLED" as const;
+
+/** True when the OAuth-client auth mode is enabled for this deployment (default OFF). */
+export function isTailscaleOAuthModeEnabled(): boolean {
+  const v = (process.env[TAILSCALE_OAUTH_FLAG_ENV] ?? "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "on";
+}
+
 export type TailscaleConnectionStatus = {
   connected: boolean;
+  /**
+   * Which auth mode the active connection uses. `"oauth"` selects the Design-C
+   * proxy-mint path in the CLI; `"api_key"` (default) keeps the legacy token
+   * path. Absent on legacy rows → treated as `"api_key"`.
+   */
+  authMode?: "api_key" | "oauth";
   tailnet?: string;
   cloneTag?: string;
   lastValidatedAt?: string;
@@ -78,6 +98,12 @@ export type TailscaleConnectionStatus = {
 };
 
 type TailscaleLocalSettings = {
+  /** `"oauth"` ⇒ Design-C OAuth-client mode; default/absent ⇒ `"api_key"`. */
+  authMode?: "api_key" | "oauth";
+  /** OAuth mode only: the Nango-generated connection id the CLI proxy-mint reads. */
+  oauthConnectionId?: string;
+  /** OAuth mode only: the OAuth provider-config-key (default cinatra-tailscale-oauth). */
+  oauthProviderConfigKey?: string;
   tailnet?: string;
   cloneTag?: string;
   lastValidatedAt?: string;
@@ -113,6 +139,7 @@ export function getTailscaleConnectionStatus(): TailscaleConnectionStatus {
     undefined;
   return {
     connected: settings.connected === true,
+    authMode: settings.authMode === "oauth" ? "oauth" : "api_key",
     tailnet: settings.tailnet,
     cloneTag: settings.cloneTag,
     lastValidatedAt: settings.lastValidatedAt,
@@ -417,8 +444,134 @@ export async function saveTailscaleConnection(input: {
   };
 }
 
+// ---------------------------------------------------------------------------
+// OAuth-client mode (Design C). The operator enters the OAuth client_id/secret
+// in Nango's hosted Connect UI; this connector only ever holds NON-secret
+// pointers (authMode + the Nango-generated connectionId + cloneTag). The CLI
+// reads those from `connector_config:tailscale` and proxy-mints per-clone
+// auth-keys. All three functions are FLAG-GATED (default OFF).
+// ---------------------------------------------------------------------------
+
+/**
+ * Mint a Nango Connect-UI session token scoped to the `tailscaleOauth`
+ * integration. The browser opens Nango's hosted Connect UI with this token; the
+ * OAuth secret is entered THERE and never transits this app.
+ */
+export async function createTailscaleOAuthConnectSession(): Promise<string> {
+  if (!isTailscaleOAuthModeEnabled()) {
+    throw new TailscaleApiError(
+      "tailscale.oauth_disabled",
+      "Tailscale OAuth-client mode is not enabled for this deployment.",
+    );
+  }
+  const nango = tailscaleNango();
+  if (!nango.isConfigured()) {
+    throw new TailscaleApiError(
+      "tailscale.nango_unconfigured",
+      "Configure the connection service (Nango) first so Tailscale OAuth can be connected.",
+    );
+  }
+  return nango.createConnectSession("tailscaleOauth");
+}
+
+/**
+ * The non-secret Nango Connect-UI base URL + OAuth provider-config-key the
+ * browser `@nangohq/frontend` SDK needs. Safe to expose to the client.
+ */
+export function getTailscaleOAuthFrontendConfig(): {
+  baseURL?: string;
+  apiURL?: string;
+  providerConfigKey: string;
+} {
+  const nango = tailscaleNango();
+  const { baseURL, apiURL } = nango.getFrontendConfig();
+  return {
+    baseURL,
+    apiURL,
+    providerConfigKey: nango.providerConfigKeys.tailscaleOauth,
+  };
+}
+
+/**
+ * Persist the OAuth connection AFTER the operator completed the Nango Connect UI
+ * (which created the TWO_STEP connection holding client_id/secret IN NANGO). We
+ * store ONLY non-secret pointers into `connector_config:tailscale`.
+ */
+export async function saveTailscaleOAuthConnection(input: {
+  connectionId: string;
+  cloneTag?: string;
+}): Promise<TailscaleConnectionStatus> {
+  if (!isTailscaleOAuthModeEnabled()) {
+    throw new TailscaleApiError(
+      "tailscale.oauth_disabled",
+      "Tailscale OAuth-client mode is not enabled for this deployment.",
+    );
+  }
+  const connectionId = input.connectionId?.trim();
+  const cloneTag = input.cloneTag?.trim() || DEFAULT_CLONE_TAG;
+  if (!connectionId) {
+    throw new TailscaleApiError(
+      "tailscale.invalid_client",
+      "Tailscale OAuth connection id is required.",
+    );
+  }
+  if (!cloneTag.startsWith("tag:")) {
+    throw new TailscaleApiError(
+      "tailscale.invalid_client",
+      "Clone tag must start with `tag:` (e.g. `tag:cinatra-clone`).",
+    );
+  }
+  const nango = tailscaleNango();
+  const oauthProviderConfigKey = nango.providerConfigKeys.tailscaleOauth;
+  const now = new Date().toISOString();
+  // OAuth tokens are minted/refreshed by Nango on demand — there is no 90-day
+  // token clock, so no tokenSetAt/tokenExpiresAt (the #22/#25 reminder is
+  // API-key-mode only).
+  const next: TailscaleLocalSettings = {
+    authMode: "oauth",
+    oauthConnectionId: connectionId,
+    oauthProviderConfigKey,
+    tailnet: "-",
+    cloneTag,
+    lastValidatedAt: now,
+    connected: true,
+  };
+  writeLocalSettings(next);
+  return {
+    connected: true,
+    authMode: "oauth",
+    tailnet: "-",
+    cloneTag,
+    lastValidatedAt: now,
+  };
+}
+
 export async function clearTailscaleConnection(): Promise<void> {
   const nango = tailscaleNango();
+  const settings = readLocalSettings();
+
+  if (settings.authMode === "oauth") {
+    // OAuth mode: the TWO_STEP connection holds the OAuth client_id/secret, so
+    // deleting the CONNECTION scrubs them from Nango. We use the AUTHORITATIVE
+    // delete (`deleteConnectionStrict`) which PROPAGATES a real (non-404)
+    // failure — so a Nango outage surfaces as an error and the local pointer is
+    // RETAINED for retry, rather than a false "disconnected" while the secret
+    // lingers. We never read the credential back (that would pull the secret
+    // into this app). ⚠️ Deleting the Nango connection does NOT revoke the OAuth
+    // client in Tailscale — the UI tells the operator to revoke it there too (a
+    // tailnet-owned client outlives the Nango connection).
+    const oauthProviderConfigKey =
+      settings.oauthProviderConfigKey || nango.providerConfigKeys.tailscaleOauth;
+    if (settings.oauthConnectionId) {
+      // Throws on a real failure → caller reports it and the pointer below is
+      // NOT wiped (we only reach writeLocalSettings on a confirmed delete).
+      await nango.deleteConnectionStrict(oauthProviderConfigKey, settings.oauthConnectionId);
+    }
+    writeLocalSettings({});
+    return;
+  }
+
+  // API-key mode (legacy, unchanged).
   const providerConfigKey = nango.providerConfigKeys.tailscale;
   const connectionId = providerConfigKey;
   // API_KEY at connection level — deleting the connection scrubs the

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Clock, Hash, KeyRound, ShieldCheck } from "lucide-react";
+import { Clock, Hash, KeyRound, ShieldCheck, Fingerprint } from "lucide-react";
 import { Alert, AlertDescription } from "./components/ui/alert";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
@@ -11,7 +11,9 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "./components/ui/in
 import { useNotify } from "@cinatra-ai/sdk-ui";
 import {
   clearTailscaleConnectionAction,
+  createTailscaleOAuthConnectSessionAction,
   saveTailscaleConnectionAction,
+  saveTailscaleOAuthConnectionAction,
 } from "./tailscale-setup-actions";
 import {
   tailscaleConnectFailureNotice,
@@ -21,6 +23,7 @@ import { describeTailscaleTokenExpiry } from "./tailscale-token-expiry.mjs";
 
 type TailscaleStatusProp = {
   connected: boolean;
+  authMode?: "api_key" | "oauth";
   tailnet?: string;
   cloneTag?: string;
   lastValidatedAt?: string;
@@ -58,14 +61,31 @@ function tokenExpiryNotice(expiresAt: string | undefined): {
 type Props = {
   initialStatus: TailscaleStatusProp;
   defaultCloneTag: string;
+  /** OAuth-client mode is flag-gated; when false the form is API-key-only (unchanged). */
+  oauthEnabled?: boolean;
+  /** Nango Connect-UI host URL (`baseURL`) for `@nangohq/frontend` (non-secret). */
+  oauthBaseUrl?: string;
+  /** Nango API URL (`apiURL`) for `@nangohq/frontend` (non-secret). */
+  oauthApiUrl?: string;
 };
 
-export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) {
+export function TailscaleConnectForm({
+  initialStatus,
+  defaultCloneTag,
+  oauthEnabled = false,
+  oauthBaseUrl,
+  oauthApiUrl,
+}: Props) {
   const { addNotification } = useNotify();
   const [status, setStatus] = useState<TailscaleStatusProp>(initialStatus);
   const [apiKey, setApiKey] = useState("");
   const [cloneTag, setCloneTag] = useState(defaultCloneTag);
+  // Auth-mode toggle (only meaningful when oauthEnabled). Default to the
+  // recommended OAuth mode for a fresh connect; ignored entirely when the flag
+  // is off (the API-key path renders exactly as before).
+  const [mode, setMode] = useState<"oauth" | "api_key">(oauthEnabled ? "oauth" : "api_key");
   const [isPending, startTransition] = useTransition();
+  const [oauthConnecting, setOauthConnecting] = useState(false);
   // Friendly copy only — failed action results carry raw server-side error
   // strings (returned, not thrown, so prod masking never applies); the raw
   // `result.error` must never reach the alert or a toast.
@@ -73,6 +93,68 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
 
   const canSubmit =
     apiKey.trim().length > 0 && cloneTag.trim().startsWith("tag:");
+  const canOAuthConnect = cloneTag.trim().startsWith("tag:") && !oauthConnecting;
+
+  // OAuth-client connect: open Nango's hosted Connect UI (an iframe; the
+  // operator enters the client_id/secret THERE — it never transits this app),
+  // then persist only the non-secret connection id. `openConnectUI` mounts the
+  // iframe and the session token is fetched and applied immediately after.
+  function handleOAuthConnect() {
+    setFriendlyError(null);
+    setOauthConnecting(true);
+    const tag = cloneTag.trim();
+    void (async () => {
+      let connectUI: { setSessionToken: (t: string) => void; close: () => void } | null = null;
+      try {
+        const NangoMod = await import("@nangohq/frontend");
+        const Nango = NangoMod.default;
+        const nango = new Nango();
+        // Pass Connect-UI URLs only when configured (self-hosted Nango). When
+        // absent (hosted Nango Cloud), `@nangohq/frontend` defaults to its Cloud
+        // URLs — so we must NOT block on a missing baseURL.
+        connectUI = nango.openConnectUI({
+          ...(oauthBaseUrl ? { baseURL: oauthBaseUrl } : {}),
+          ...(oauthApiUrl ? { apiURL: oauthApiUrl } : {}),
+          onEvent: (event: { type: string; payload?: { connectionId?: string } }) => {
+            if (event.type === "connect" && event.payload?.connectionId) {
+              const connectionId = event.payload.connectionId;
+              startTransition(async () => {
+                const saved = await saveTailscaleOAuthConnectionAction({ connectionId, cloneTag: tag });
+                if (!saved.ok) {
+                  setFriendlyError(saved.error);
+                  addNotification({ title: "Tailscale OAuth save failed", body: saved.error, kind: "error" });
+                  return;
+                }
+                setStatus(saved.status);
+                addNotification({
+                  title: "Tailscale connected (OAuth)",
+                  body: "OAuth client connected. Clone auto-tunnels will mint keys via Nango — no 90-day token expiry.",
+                  kind: "success",
+                });
+              });
+              connectUI?.close();
+            } else if (event.type === "error") {
+              setFriendlyError("Tailscale OAuth connection did not complete.");
+            }
+          },
+        });
+        const session = await createTailscaleOAuthConnectSessionAction();
+        if (!session.ok) {
+          setFriendlyError(session.error);
+          addNotification({ title: "Tailscale OAuth unavailable", body: session.error, kind: "error" });
+          connectUI?.close();
+          return;
+        }
+        connectUI.setSessionToken(session.token);
+      } catch {
+        // Never surface raw SDK/network detail.
+        setFriendlyError("Could not open the Tailscale OAuth connection dialog.");
+        connectUI?.close();
+      } finally {
+        setOauthConnecting(false);
+      }
+    })();
+  }
 
   const expiryNotice = status.connected
     ? tokenExpiryNotice(status.tokenExpiresAt)
@@ -109,6 +191,7 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
 
   function handleDisconnect() {
     setFriendlyError(null);
+    const wasOauth = status.authMode === "oauth";
     startTransition(async () => {
       const result = await clearTailscaleConnectionAction();
       if (!result.ok) {
@@ -124,7 +207,9 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
       setStatus({ connected: false });
       addNotification({
         title: "Tailscale disconnected",
-        body: "API token removed from Nango.",
+        body: wasOauth
+          ? "OAuth connection removed from Nango. Remember to also revoke the OAuth client in Tailscale → OAuth clients."
+          : "API token removed from Nango.",
         kind: "success",
       });
     });
@@ -140,6 +225,23 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
                 <ShieldCheck className="mr-1 h-3 w-3" />
                 Connected
               </Badge>
+              {/* Auth-mode badge only when OAuth mode is enabled — flag-OFF keeps
+                  the connected view byte-for-byte unchanged for API-key users. */}
+              {oauthEnabled ? (
+                <Badge variant="outline">
+                  {status.authMode === "oauth" ? (
+                    <>
+                      <Fingerprint className="mr-1 h-3 w-3" />
+                      OAuth client
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="mr-1 h-3 w-3" />
+                      API token
+                    </>
+                  )}
+                </Badge>
+              ) : null}
               {expiryNotice ? (
                 <Badge
                   variant={
@@ -205,9 +307,86 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
                 <AlertDescription>{expiryNotice.body}</AlertDescription>
               </Alert>
             ) : null}
+            {status.authMode === "oauth" ? (
+              <Alert>
+                <Fingerprint aria-hidden="true" />
+                <AlertDescription>
+                  Disconnecting removes the connection from Nango but does{" "}
+                  <strong>not</strong> revoke the OAuth client — also delete it
+                  in{" "}
+                  <a
+                    href="https://login.tailscale.com/admin/settings/oauth"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-4 hover:text-foreground"
+                  >
+                    Tailscale → OAuth clients
+                  </a>{" "}
+                  to fully revoke access.
+                </AlertDescription>
+              </Alert>
+            ) : null}
           </div>
         ) : (
           <>
+            {oauthEnabled ? (
+              <div
+                role="tablist"
+                aria-label="Tailscale auth mode"
+                className="inline-flex w-fit gap-1 rounded-lg bg-surface-strong p-1"
+              >
+                <Button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "oauth"}
+                  variant={mode === "oauth" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    setMode("oauth");
+                    setFriendlyError(null);
+                  }}
+                >
+                  <Fingerprint className="mr-1 h-3 w-3" aria-hidden="true" />
+                  OAuth client
+                </Button>
+                <Button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "api_key"}
+                  variant={mode === "api_key" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    setMode("api_key");
+                    setFriendlyError(null);
+                  }}
+                >
+                  <KeyRound className="mr-1 h-3 w-3" aria-hidden="true" />
+                  API access token
+                </Button>
+              </div>
+            ) : null}
+            {mode === "oauth" && oauthEnabled ? (
+              <Field>
+                <FieldLabel>OAuth client (recommended)</FieldLabel>
+                <FieldDescription className="leading-6">
+                  Create an OAuth client at{" "}
+                  <a
+                    href="https://login.tailscale.com/admin/settings/oauth"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-4 hover:text-foreground"
+                  >
+                    login.tailscale.com/admin/settings/oauth
+                  </a>{" "}
+                  with scope <code>auth_keys</code> and the tag below attached.
+                  Click <strong>Connect OAuth client</strong> — you&apos;ll enter
+                  the <strong>client ID + secret</strong> in Tailscale&apos;s
+                  connection service dialog (they are stored encrypted in Nango
+                  and never touch Cinatra). Unlike an API token, an OAuth client
+                  has <strong>no 90-day expiry</strong>.
+                </FieldDescription>
+              </Field>
+            ) : (
             <Field>
               <FieldLabel htmlFor="tailscaleApiKey">API access token</FieldLabel>
               <InputGroup className="max-w-xl">
@@ -241,6 +420,7 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
                 (e.g. owner <code>autogroup:admin</code>).
               </FieldDescription>
             </Field>
+            )}
             <Field>
               <FieldLabel htmlFor="tailscaleCloneTag">Tag</FieldLabel>
               <InputGroup className="max-w-xl">
@@ -282,6 +462,14 @@ export function TailscaleConnectForm({ initialStatus, defaultCloneTag }: Props) 
             disabled={isPending}
           >
             {isPending ? "Disconnecting…" : "Disconnect"}
+          </Button>
+        ) : mode === "oauth" && oauthEnabled ? (
+          <Button
+            type="button"
+            onClick={handleOAuthConnect}
+            disabled={isPending || !canOAuthConnect}
+          >
+            {oauthConnecting || isPending ? "Connecting…" : "Connect OAuth client"}
           </Button>
         ) : (
           <Button

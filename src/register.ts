@@ -74,12 +74,40 @@ export function register(ctx: ExtensionHostContext): void {
         nango().getNangoCredentials(providerConfigKey, connectionId, opts),
       deleteConnection: (providerConfigKey, connectionId) =>
         nango().deleteNangoConnection(providerConfigKey, connectionId),
+      // Authoritative delete (#23, Design C) — propagates non-404 failures.
+      // Cast at the boundary; the nango-system impl exposes it.
+      deleteConnectionStrict: (providerConfigKey, connectionId) =>
+        (
+          nango() as unknown as {
+            deleteNangoConnectionStrict(pck: string, connId: string): Promise<void>;
+          }
+        ).deleteNangoConnectionStrict(providerConfigKey, connectionId),
       clearConnectionRecords: (connectorKey) => nango().clearNangoConnectionRecords(connectorKey),
+      // OAuth-client mode (#23, Design C): the Connect-UI session-mint +
+      // frontend-config members live on the SAME nango-system surface impl
+      // (published by the nango gateway). Cast at this boundary — the SDK type
+      // may not declare them, but the impl does (same "cast at boundary"
+      // doctrine as the input casts above).
+      createConnectSession: (connectorKey) =>
+        (
+          nango() as unknown as {
+            createNangoConnectSession(input: { connectorKey: string }): Promise<string>;
+          }
+        ).createNangoConnectSession({ connectorKey }),
+      getFrontendConfig: () =>
+        (
+          nango() as unknown as {
+            getNangoFrontendConfig(): { baseURL?: string; apiURL?: string };
+          }
+        ).getNangoFrontendConfig(),
       // Vendor identity is OPEN at the SDK (#12): the surface's key maps are
       // `Record<string, string>` (no SDK-frozen union), so this connector
-      // projects ITS OWN key out of the open map at the boundary.
+      // projects ITS OWN keys out of the open map at the boundary.
       get providerConfigKeys() {
-        return { tailscale: nango().providerConfigKeys.tailscale };
+        return {
+          tailscale: nango().providerConfigKeys.tailscale,
+          tailscaleOauth: nango().providerConfigKeys.tailscaleOauth,
+        };
       },
     },
   };

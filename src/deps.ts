@@ -46,12 +46,32 @@ export interface TailscaleNangoCapability {
     connectionId: string,
     opts?: { forceRefresh?: boolean },
   ): Promise<unknown>;
-  /** Delete the Nango connection (scrubs stored credentials). */
+  /** Delete the Nango connection (scrubs stored credentials). Best-effort/idempotent. */
   deleteConnection(providerConfigKey: string, connectionId: string): Promise<unknown>;
+  /**
+   * AUTHORITATIVE delete: scrubs the Nango connection and PROPAGATES a real
+   * (non-404) failure so the caller can retain its pointer + report failure
+   * instead of falsely reporting "disconnected" while the credential lingers.
+   * A 404 / already-gone connection resolves successfully (idempotent).
+   */
+  deleteConnectionStrict(providerConfigKey: string, connectionId: string): Promise<void>;
   /** Clear the cinatra-side pointer rows for this connector. */
   clearConnectionRecords(connectorKey: "tailscale"): Promise<unknown>;
-  /** Provider-config-key bag — only this connector's slug is exposed. */
-  providerConfigKeys: { tailscale: string };
+  /**
+   * Mint a Nango Connect-UI session token for the OAuth-client mode
+   * (cinatra-ai/tailscale-connector#23, Design C). The token scopes the hosted
+   * Connect UI to the `tailscaleOauth` integration so the operator enters the
+   * OAuth client_id/secret in Nango's UI — the secret never transits this app.
+   */
+  createConnectSession(connectorKey: "tailscaleOauth"): Promise<string>;
+  /**
+   * Nango frontend config for `@nangohq/frontend`'s `openConnectUI`:
+   * `baseURL` = the Connect-UI host (e.g. :3009), `apiURL` = the Nango API
+   * (e.g. :3003). Both non-secret.
+   */
+  getFrontendConfig(): { baseURL?: string; apiURL?: string };
+  /** Provider-config-key bag — only this connector's slugs are exposed. */
+  providerConfigKeys: { tailscale: string; tailscaleOauth: string };
 }
 
 export interface TailscaleConnectorDeps {

@@ -29,7 +29,10 @@ const ensureIntegration = vi.fn(async (..._a: unknown[]): Promise<unknown> => un
 const importConnection = vi.fn(async (..._a: unknown[]): Promise<unknown> => undefined);
 const getCredentials = vi.fn(async (..._a: unknown[]): Promise<unknown> => ({}));
 const deleteConnection = vi.fn(async (..._a: unknown[]): Promise<unknown> => undefined);
+const deleteConnectionStrict = vi.fn(async (..._a: unknown[]): Promise<void> => undefined);
 const clearConnectionRecords = vi.fn(async (..._a: unknown[]): Promise<unknown> => undefined);
+const createConnectSession = vi.fn(async (..._a: unknown[]): Promise<string> => "session-token");
+const getFrontendConfig = vi.fn(() => ({ baseURL: "http://localhost:3009", apiURL: "http://localhost:3003" }));
 
 beforeEach(() => {
   CONFIG_STORE = {};
@@ -47,8 +50,11 @@ beforeEach(() => {
       importConnection,
       getCredentials,
       deleteConnection,
+      deleteConnectionStrict,
       clearConnectionRecords,
-      providerConfigKeys: { tailscale: PROVIDER_KEY },
+      createConnectSession,
+      getFrontendConfig,
+      providerConfigKeys: { tailscale: PROVIDER_KEY, tailscaleOauth: "cinatra-tailscale-oauth" },
     },
   });
   isConfigured.mockReturnValue(true);

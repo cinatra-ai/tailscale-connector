@@ -5,6 +5,8 @@ import { Card, CardDescription, CardHeader, CardTitle } from "./components/ui/ca
 import {
   getDefaultTailscaleCloneTag,
   getTailscaleConnectionStatus,
+  getTailscaleOAuthFrontendConfig,
+  isTailscaleOAuthModeEnabled,
 } from "./index";
 import { TailscaleConnectForm } from "./tailscale-connect-form";
 
@@ -14,6 +16,10 @@ export const dynamic = "force-dynamic";
 export async function TailscaleConnectorPageImpl() {
   const status = getTailscaleConnectionStatus();
   const defaultCloneTag = getDefaultTailscaleCloneTag();
+  // OAuth-client mode ships FLAG-OFF: only when enabled do we surface the auth-
+  // mode toggle + the (non-secret) Connect-UI base URL the browser SDK needs.
+  const oauthEnabled = isTailscaleOAuthModeEnabled();
+  const oauthFrontend = oauthEnabled ? getTailscaleOAuthFrontendConfig() : null;
 
   return (
     <Main className="min-h-screen">
@@ -25,14 +31,22 @@ export async function TailscaleConnectorPageImpl() {
       <PageContent className="max-w-3xl flex flex-col gap-6 pb-8">
         <Card className="border-line bg-surface backdrop-blur-none">
           <CardHeader>
-            <CardTitle>Tailscale API access token</CardTitle>
+            <CardTitle>
+              {oauthEnabled ? "Tailscale connection" : "Tailscale API access token"}
+            </CardTitle>
             <CardDescription className="leading-6">
-              The token is stored in Nango at the connection level (API_KEY
-              auth mode), encrypted at rest, and shared across this Cinatra
-              deployment.
+              {oauthEnabled
+                ? "Connect with an OAuth client (recommended — no 90-day expiry) or an API access token. Credentials are stored in Nango, encrypted at rest, and shared across this Cinatra deployment."
+                : "The token is stored in Nango at the connection level (API_KEY auth mode), encrypted at rest, and shared across this Cinatra deployment."}
             </CardDescription>
           </CardHeader>
-          <TailscaleConnectForm initialStatus={status} defaultCloneTag={defaultCloneTag} />
+          <TailscaleConnectForm
+            initialStatus={status}
+            defaultCloneTag={defaultCloneTag}
+            oauthEnabled={oauthEnabled}
+            oauthBaseUrl={oauthFrontend?.baseURL}
+            oauthApiUrl={oauthFrontend?.apiURL}
+          />
         </Card>
       </PageContent>
     </Main>

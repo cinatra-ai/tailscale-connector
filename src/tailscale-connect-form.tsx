@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "./components/ui/alert";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { CardContent, CardFooter } from "./components/ui/card";
+import { ExternalLink } from "./components/ui/external-link";
 import { Field, FieldDescription, FieldLabel } from "./components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "./components/ui/input-group";
 import { useNotify } from "@cinatra-ai/sdk-ui";
@@ -314,14 +315,9 @@ export function TailscaleConnectForm({
                   Disconnecting removes the connection from Nango but does{" "}
                   <strong>not</strong> revoke the OAuth client — also delete it
                   in{" "}
-                  <a
-                    href="https://login.tailscale.com/admin/settings/oauth"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-4 hover:text-foreground"
-                  >
+                  <ExternalLink href="https://login.tailscale.com/admin/settings/oauth">
                     Tailscale → OAuth clients
-                  </a>{" "}
+                  </ExternalLink>{" "}
                   to fully revoke access.
                 </AlertDescription>
               </Alert>
@@ -370,14 +366,9 @@ export function TailscaleConnectForm({
                 <FieldLabel>OAuth client (recommended)</FieldLabel>
                 <FieldDescription className="leading-6">
                   Create an OAuth client at{" "}
-                  <a
-                    href="https://login.tailscale.com/admin/settings/oauth"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-4 hover:text-foreground"
-                  >
+                  <ExternalLink href="https://login.tailscale.com/admin/settings/oauth">
                     login.tailscale.com/admin/settings/oauth
-                  </a>{" "}
+                  </ExternalLink>{" "}
                   with scope <code>auth_keys</code> and the tag below attached.
                   Click <strong>Connect OAuth client</strong> — you&apos;ll enter
                   the <strong>client ID + secret</strong> in Tailscale&apos;s
@@ -405,14 +396,9 @@ export function TailscaleConnectForm({
               </InputGroup>
               <FieldDescription className="leading-6">
                 Generate at{" "}
-                <a
-                  href="https://login.tailscale.com/admin/settings/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-4 hover:text-foreground"
-                >
+                <ExternalLink href="https://login.tailscale.com/admin/settings/keys">
                   login.tailscale.com/admin/settings/keys
-                </a>
+                </ExternalLink>
                 . Click <strong>Generate access token</strong> and, on the
                 token creation page, set <strong>Tags</strong> to whichever
                 tag you enter below. If the tag doesn&apos;t exist yet, open

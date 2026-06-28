@@ -26,7 +26,7 @@ const deleteConnection = vi.fn(async (..._a: unknown[]): Promise<unknown> => und
 const deleteConnectionStrict = vi.fn(async (..._a: unknown[]): Promise<void> => undefined);
 const clearConnectionRecords = vi.fn(async (..._a: unknown[]): Promise<unknown> => undefined);
 const createConnectSession = vi.fn(async (..._a: unknown[]): Promise<string> => "session-token-xyz");
-const getFrontendConfig = vi.fn(() => ({ baseURL: "http://localhost:3009", apiURL: "http://localhost:3003" }));
+const getFrontendConfig = vi.fn((): { baseURL?: string; apiURL?: string } => ({ baseURL: "http://localhost:3009", apiURL: "http://localhost:3003" }));
 // Disconnect must NEVER read credentials back (that would pull the secret).
 const getCredentials = vi.fn(async (..._a: unknown[]): Promise<unknown> => {
   throw new Error("getCredentials must not be called during OAuth disconnect");

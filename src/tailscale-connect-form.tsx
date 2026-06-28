@@ -116,7 +116,7 @@ export function TailscaleConnectForm({
         connectUI = nango.openConnectUI({
           ...(oauthBaseUrl ? { baseURL: oauthBaseUrl } : {}),
           ...(oauthApiUrl ? { apiURL: oauthApiUrl } : {}),
-          onEvent: (event: { type: string; payload?: { connectionId?: string } }) => {
+          onEvent: (event) => {
             if (event.type === "connect" && event.payload?.connectionId) {
               const connectionId = event.payload.connectionId;
               startTransition(async () => {

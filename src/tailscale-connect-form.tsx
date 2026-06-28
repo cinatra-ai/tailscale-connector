@@ -209,7 +209,7 @@ export function TailscaleConnectForm({
       addNotification({
         title: "Tailscale disconnected",
         body: wasOauth
-          ? "OAuth connection removed from Nango. Remember to also revoke the OAuth client in Tailscale → OAuth clients."
+          ? "OAuth connection removed from Nango. Remember to also revoke the credential in Tailscale → Trust credentials."
           : "API token removed from Nango.",
         kind: "success",
       });
@@ -313,10 +313,10 @@ export function TailscaleConnectForm({
                 <Fingerprint aria-hidden="true" />
                 <AlertDescription>
                   Disconnecting removes the connection from Nango but does{" "}
-                  <strong>not</strong> revoke the OAuth client — also delete it
-                  in{" "}
-                  <ExternalLink href="https://login.tailscale.com/admin/settings/oauth">
-                    Tailscale → OAuth clients
+                  <strong>not</strong> revoke the OAuth client — also delete the
+                  credential in{" "}
+                  <ExternalLink href="https://login.tailscale.com/admin/settings/trust-credentials">
+                    Tailscale → Trust credentials
                   </ExternalLink>{" "}
                   to fully revoke access.
                 </AlertDescription>
@@ -365,16 +365,21 @@ export function TailscaleConnectForm({
               <Field>
                 <FieldLabel>OAuth client (recommended)</FieldLabel>
                 <FieldDescription className="leading-6">
-                  Create an OAuth client at{" "}
-                  <ExternalLink href="https://login.tailscale.com/admin/settings/oauth">
-                    login.tailscale.com/admin/settings/oauth
+                  In{" "}
+                  <ExternalLink href="https://login.tailscale.com/admin/settings/trust-credentials">
+                    Tailscale → Trust credentials
                   </ExternalLink>{" "}
-                  with scope <code>auth_keys</code> and the tag below attached.
-                  Click <strong>Connect OAuth client</strong> — you&apos;ll enter
-                  the <strong>client ID + secret</strong> in Tailscale&apos;s
-                  connection service dialog (they are stored encrypted in Nango
-                  and never touch Cinatra). Unlike an API token, an OAuth client
-                  has <strong>no 90-day expiry</strong>.
+                  add a <strong>Credential → OAuth</strong> with{" "}
+                  <strong>Keys (<code>auth_keys</code>) = Write</strong> and the
+                  tag below attached, then <strong>Generate credential</strong>.
+                  The tag must already exist as a <code>tagOwners</code> entry in
+                  your tailnet policy (e.g. owner <code>autogroup:admin</code>) —
+                  add it first if it isn&apos;t selectable. Click{" "}
+                  <strong>Connect OAuth client</strong> — you&apos;ll enter the{" "}
+                  <strong>client ID + secret</strong> in the connection service
+                  dialog (they are stored encrypted in Nango and never touch
+                  Cinatra). Unlike an API token, an OAuth client has{" "}
+                  <strong>no 90-day expiry</strong>.
                 </FieldDescription>
               </Field>
             ) : (

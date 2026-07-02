@@ -61,6 +61,7 @@
     "devCliModules": {
       "tailscale-api": "./src/tailscale-api.mjs",
       "tailscale-hostname": "./src/tailscale-hostname.mjs"
-    }
+    },
+    "consumes": []
   }
 }

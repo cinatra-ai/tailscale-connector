@@ -44,6 +44,8 @@ beforeEach(() => {
       CONFIG_STORE[key] = value;
     },
     readInstanceIdentity: () => ({ instanceDisplayName: "test-instance" }),
+    isOAuthModeEnabled: () => false,
+    readDevIsolationInputs: () => ({}),
     nango: {
       isConfigured,
       ensureIntegration,

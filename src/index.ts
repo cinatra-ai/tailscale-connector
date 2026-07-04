@@ -72,12 +72,16 @@ const DEFAULT_CLONE_TAG = "tag:cinatra-clone" as const;
 // an OAuth connection that stale clone workers (which can't proxy-mint) would
 // silently fail on. Activation flips this AFTER the new CLI is deployed +
 // canaried on every worker.
-const TAILSCALE_OAUTH_FLAG_ENV = "CINATRA_TAILSCALE_OAUTH_ENABLED" as const;
+export const TAILSCALE_OAUTH_FLAG_ENV = "CINATRA_TAILSCALE_OAUTH_ENABLED" as const;
 
-/** True when the OAuth-client auth mode is enabled for this deployment (default OFF). */
+/**
+ * True when the OAuth-client auth mode is enabled for this deployment (default
+ * OFF). Delegates to the host-bound deps port (`register(ctx)` wires it to the
+ * ambient `ctx.runtime.flag` host port) — extension runtime code must not read
+ * `process.env` directly (host/extension boundary, cinatra-ai/cinatra#978).
+ */
 export function isTailscaleOAuthModeEnabled(): boolean {
-  const v = (process.env[TAILSCALE_OAUTH_FLAG_ENV] ?? "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "on";
+  return getTailscaleDeps().isOAuthModeEnabled();
 }
 
 export type TailscaleConnectionStatus = {
@@ -159,10 +163,11 @@ export function getTailscaleConnectionStatus(): TailscaleConnectionStatus {
  * so a schema-only derivation collided on `cinatra-main`).
  */
 export function getTailscaleDevHostname(): string {
-  return deriveDevTailscaleHostname({
-    dbUrl: process.env.SUPABASE_DB_URL,
-    schema: process.env.SUPABASE_SCHEMA,
-  });
+  // The isolation inputs arrive through the host-bound deps port (injected at
+  // the `register(ctx)` composition root) — extension runtime code must not
+  // read `process.env` directly (host/extension boundary, cinatra-ai/cinatra#978).
+  const { dbUrl, schema } = getTailscaleDeps().readDevIsolationInputs();
+  return deriveDevTailscaleHostname({ dbUrl, schema });
 }
 
 /**

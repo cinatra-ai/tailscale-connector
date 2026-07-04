@@ -20,7 +20,11 @@ import type {
   NangoSystemSurface,
 } from "@cinatra-ai/sdk-extensions";
 import { registerTailscaleConnector, type TailscaleConnectorDeps } from "./deps";
-import { getTailscaleConnectionStatus, getTailscaleFunnelUrlPreview } from "./index";
+import {
+  getTailscaleConnectionStatus,
+  getTailscaleFunnelUrlPreview,
+  TAILSCALE_OAUTH_FLAG_ENV,
+} from "./index";
 
 const PACKAGE_NAME = "@cinatra-ai/tailscale-connector";
 
@@ -54,12 +58,28 @@ export function register(ctx: ExtensionHostContext): void {
     return surface;
   };
 
+  // Host/extension boundary (cinatra-ai/cinatra#978): runtime values reach the
+  // connector's modules through injected deps, never raw `process.env` reads in
+  // runtime code. The dev-instance isolation inputs (the heavy-clone DB URL /
+  // light-worktree schema) are captured ONCE here at the composition root —
+  // they are immutable per process (the same invariant that makes the hostname
+  // derivation pure) — pending a host port that carries the isolation identity.
+  const devIsolationInputs = {
+    dbUrl: process.env.SUPABASE_DB_URL,
+    schema: process.env.SUPABASE_SCHEMA,
+  };
+
   const deps: TailscaleConnectorDeps = {
     readConnectorConfigFromDatabase: (connectorId, fallback) =>
       config().read(connectorId, fallback),
     writeConnectorConfigToDatabase: (connectorId, value) =>
       config().write(connectorId, value),
     readInstanceIdentity: () => identity().read(),
+    // The OAuth-mode flag reads through the ambient `ctx.runtime.flag` host
+    // port (host-mediated env access; the host's flag grammar accepts
+    // "1"/"true"). Resolved at CALL time like the other host services.
+    isOAuthModeEnabled: () => ctx.runtime.flag(TAILSCALE_OAUTH_FLAG_ENV),
+    readDevIsolationInputs: () => devIsolationInputs,
     // Members delegate to the nango-system surface at CALL time (the key map
     // is a getter for the same reason). Inputs are cast at this boundary where
     // the surface owns the wider shape (required displayName /

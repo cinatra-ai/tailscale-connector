@@ -82,6 +82,20 @@ export interface TailscaleConnectorDeps {
   /** This deployment's instance identity (the `@/lib/instance-identity-store` surface).
    *  Typed structurally to the only field tailscale reads — keeps deps leaf. */
   readInstanceIdentity: () => { instanceDisplayName?: string | null } | null;
+  /**
+   * True when the OAuth-client auth mode (Design C) is enabled for this
+   * deployment (default OFF). Host-mediated: `register(ctx)` binds this to the
+   * ambient `ctx.runtime.flag` port — runtime connector code never reads
+   * `process.env` directly (host/extension boundary, cinatra-ai/cinatra#978).
+   */
+  isOAuthModeEnabled: () => boolean;
+  /**
+   * The immutable dev-instance isolation inputs the deterministic Tailscale
+   * device hostname derives from (heavy-clone DB URL / light-worktree schema).
+   * Injected at the `register(ctx)` composition root like every other host
+   * value — runtime connector code never reads `process.env` directly.
+   */
+  readDevIsolationInputs: () => { dbUrl?: string; schema?: string };
   /** Nango connection-storage surface (host-bound from the nango-connector extension). */
   nango: TailscaleNangoCapability;
 }

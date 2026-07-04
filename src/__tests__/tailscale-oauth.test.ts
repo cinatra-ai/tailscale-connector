@@ -32,11 +32,15 @@ const getCredentials = vi.fn(async (..._a: unknown[]): Promise<unknown> => {
   throw new Error("getCredentials must not be called during OAuth disconnect");
 });
 
+// The flag is host-mediated: `register(ctx)` binds `isOAuthModeEnabled` to the
+// ambient `ctx.runtime.flag` host port (cinatra-ai/cinatra#978) — tests toggle
+// the injected deps port, never `process.env`.
+let oauthFlagEnabled = false;
 function enableFlag() {
-  process.env.CINATRA_TAILSCALE_OAUTH_ENABLED = "1";
+  oauthFlagEnabled = true;
 }
 function disableFlag() {
-  delete process.env.CINATRA_TAILSCALE_OAUTH_ENABLED;
+  oauthFlagEnabled = false;
 }
 
 beforeEach(() => {
@@ -50,6 +54,8 @@ beforeEach(() => {
       CONFIG_STORE[key] = value;
     },
     readInstanceIdentity: () => ({ instanceDisplayName: "test-instance" }),
+    isOAuthModeEnabled: () => oauthFlagEnabled,
+    readDevIsolationInputs: () => ({}),
     nango: {
       isConfigured,
       ensureIntegration: vi.fn(async () => undefined),
@@ -73,13 +79,13 @@ afterEach(() => {
 });
 
 describe("flag gating (ships OFF)", () => {
-  it("isTailscaleOAuthModeEnabled is false by default, true for 1/true/on", () => {
+  it("isTailscaleOAuthModeEnabled is false by default and delegates to the host-bound port", () => {
+    // Env-string parsing moved behind the host's ambient `ctx.runtime.flag`
+    // port (cinatra-ai/cinatra#978) — the connector only sees the boolean.
     expect(isTailscaleOAuthModeEnabled()).toBe(false);
-    for (const v of ["1", "true", "on", "TRUE"]) {
-      process.env.CINATRA_TAILSCALE_OAUTH_ENABLED = v;
-      expect(isTailscaleOAuthModeEnabled()).toBe(true);
-    }
-    process.env.CINATRA_TAILSCALE_OAUTH_ENABLED = "0";
+    enableFlag();
+    expect(isTailscaleOAuthModeEnabled()).toBe(true);
+    disableFlag();
     expect(isTailscaleOAuthModeEnabled()).toBe(false);
   });
 

@@ -87,10 +87,6 @@ export function TailscaleConnectForm({
   const [mode, setMode] = useState<"oauth" | "api_key">(oauthEnabled ? "oauth" : "api_key");
   const [isPending, startTransition] = useTransition();
   const [oauthConnecting, setOauthConnecting] = useState(false);
-  // Friendly copy only — failed action results carry raw server-side error
-  // strings (returned, not thrown, so prod masking never applies); the raw
-  // `result.error` must never reach the alert or a toast.
-  const [friendlyError, setFriendlyError] = useState<string | null>(null);
 
   const canSubmit =
     apiKey.trim().length > 0 && cloneTag.trim().startsWith("tag:");
@@ -101,7 +97,6 @@ export function TailscaleConnectForm({
   // then persist only the non-secret connection id. `openConnectUI` mounts the
   // iframe and the session token is fetched and applied immediately after.
   function handleOAuthConnect() {
-    setFriendlyError(null);
     setOauthConnecting(true);
     const tag = cloneTag.trim();
     void (async () => {
@@ -122,7 +117,6 @@ export function TailscaleConnectForm({
               startTransition(async () => {
                 const saved = await saveTailscaleOAuthConnectionAction({ connectionId, cloneTag: tag });
                 if (!saved.ok) {
-                  setFriendlyError(saved.error);
                   addNotification({ title: "Tailscale OAuth save failed", body: saved.error, kind: "error" });
                   return;
                 }
@@ -135,13 +129,16 @@ export function TailscaleConnectForm({
               });
               connectUI?.close();
             } else if (event.type === "error") {
-              setFriendlyError("Tailscale OAuth connection did not complete.");
+              addNotification({
+                title: "Tailscale OAuth connection failed",
+                body: "Tailscale OAuth connection did not complete.",
+                kind: "error",
+              });
             }
           },
         });
         const session = await createTailscaleOAuthConnectSessionAction();
         if (!session.ok) {
-          setFriendlyError(session.error);
           addNotification({ title: "Tailscale OAuth unavailable", body: session.error, kind: "error" });
           connectUI?.close();
           return;
@@ -149,7 +146,11 @@ export function TailscaleConnectForm({
         connectUI.setSessionToken(session.token);
       } catch {
         // Never surface raw SDK/network detail.
-        setFriendlyError("Could not open the Tailscale OAuth connection dialog.");
+        addNotification({
+          title: "Tailscale OAuth connection failed",
+          body: "Could not open the Tailscale OAuth connection dialog.",
+          kind: "error",
+        });
         connectUI?.close();
       } finally {
         setOauthConnecting(false);
@@ -162,7 +163,6 @@ export function TailscaleConnectForm({
     : null;
 
   function handleConnect() {
-    setFriendlyError(null);
     startTransition(async () => {
       const result = await saveTailscaleConnectionAction({
         apiKey: apiKey.trim(),
@@ -170,7 +170,6 @@ export function TailscaleConnectForm({
       });
       if (!result.ok) {
         const notice = tailscaleConnectFailureNotice(result);
-        setFriendlyError(notice.body);
         addNotification({
           title: notice.title,
           body: notice.body,
@@ -191,13 +190,11 @@ export function TailscaleConnectForm({
   }
 
   function handleDisconnect() {
-    setFriendlyError(null);
     const wasOauth = status.authMode === "oauth";
     startTransition(async () => {
       const result = await clearTailscaleConnectionAction();
       if (!result.ok) {
         const notice = tailscaleDisconnectFailureNotice(result);
-        setFriendlyError(notice.body);
         addNotification({
           title: notice.title,
           body: notice.body,
@@ -337,10 +334,7 @@ export function TailscaleConnectForm({
                   aria-selected={mode === "oauth"}
                   variant={mode === "oauth" ? "default" : "ghost"}
                   size="sm"
-                  onClick={() => {
-                    setMode("oauth");
-                    setFriendlyError(null);
-                  }}
+                  onClick={() => setMode("oauth")}
                 >
                   <Fingerprint className="mr-1 h-3 w-3" aria-hidden="true" />
                   OAuth client
@@ -351,10 +345,7 @@ export function TailscaleConnectForm({
                   aria-selected={mode === "api_key"}
                   variant={mode === "api_key" ? "default" : "ghost"}
                   size="sm"
-                  onClick={() => {
-                    setMode("api_key");
-                    setFriendlyError(null);
-                  }}
+                  onClick={() => setMode("api_key")}
                 >
                   <KeyRound className="mr-1 h-3 w-3" aria-hidden="true" />
                   API access token
@@ -438,11 +429,6 @@ export function TailscaleConnectForm({
             </Field>
           </>
         )}
-        {friendlyError ? (
-          <Alert variant="destructive">
-            <AlertDescription>{friendlyError}</AlertDescription>
-          </Alert>
-        ) : null}
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
         {status.connected ? (

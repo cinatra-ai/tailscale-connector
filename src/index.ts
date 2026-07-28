@@ -16,6 +16,7 @@ import {
   TailscaleApiError,
 } from "./tailscale-api.mjs";
 import {
+  classifyDevTailscaleIdentity,
   composeTailscaleFunnelUrl,
   deriveDevTailscaleHostname,
 } from "./tailscale-hostname.mjs";
@@ -166,8 +167,10 @@ export function getTailscaleDevHostname(): string {
   // The isolation inputs arrive through the host-bound deps port (injected at
   // the `register(ctx)` composition root) — extension runtime code must not
   // read `process.env` directly (host/extension boundary, cinatra-ai/cinatra#978).
-  const { dbUrl, schema } = getTailscaleDeps().readDevIsolationInputs();
-  return deriveDevTailscaleHostname({ dbUrl, schema });
+  const { dbUrl, schema, mainDatabase } = getTailscaleDeps().readDevIsolationInputs();
+  // THROWS `DevTailscaleIdentityError` when this instance has no sanctioned
+  // identity (cinatra#2172) — the reserved main hostname is never a fallback.
+  return deriveDevTailscaleHostname({ dbUrl, schema, mainDatabase });
 }
 
 /**
@@ -184,7 +187,19 @@ export function getTailscaleFunnelUrlPreview(): string | null {
   const settings = readLocalSettings();
   const tailnet = settings.tailnet;
   if (!tailnet || tailnet === "-") return null;
-  return composeTailscaleFunnelUrl(getTailscaleDevHostname(), tailnet);
+  // cinatra#2172 — an instance with no sanctioned identity gets NO preview
+  // (previously it was shown the reserved main URL, which belongs to another
+  // instance). The reason is surfaced rather than swallowed: a silent null
+  // here is indistinguishable from "Tailscale not connected yet".
+  const { dbUrl, schema, mainDatabase } = getTailscaleDeps().readDevIsolationInputs();
+  const identity = classifyDevTailscaleIdentity({ dbUrl, schema, mainDatabase });
+  if (!identity.ok) {
+    console.warn(
+      `[connector-tailscale] no Funnel URL preview: ${identity.code} — ${identity.reason}`,
+    );
+    return null;
+  }
+  return composeTailscaleFunnelUrl(identity.hostname, tailnet);
 }
 
 /**

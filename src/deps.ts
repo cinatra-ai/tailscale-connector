@@ -91,11 +91,18 @@ export interface TailscaleConnectorDeps {
   isOAuthModeEnabled: () => boolean;
   /**
    * The immutable dev-instance isolation inputs the deterministic Tailscale
-   * device hostname derives from (heavy-clone DB URL / light-worktree schema).
+   * device hostname derives from (heavy-clone DB URL / light-worktree schema),
+   * plus the OPTIONAL explicit declaration that this instance is the dev main
+   * (cinatra#2172 — the reserved `cinatra-main` identity is declared, never
+   * inferred; an absent declaration simply means "not the main").
    * Injected at the `register(ctx)` composition root like every other host
    * value — runtime connector code never reads `process.env` directly.
    */
-  readDevIsolationInputs: () => { dbUrl?: string; schema?: string };
+  readDevIsolationInputs: () => {
+    dbUrl?: string;
+    schema?: string;
+    mainDatabase?: string;
+  };
   /** Nango connection-storage surface (host-bound from the nango-connector extension). */
   nango: TailscaleNangoCapability;
 }

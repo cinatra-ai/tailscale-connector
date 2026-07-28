@@ -64,9 +64,16 @@ export function register(ctx: ExtensionHostContext): void {
   // light-worktree schema) are captured ONCE here at the composition root —
   // they are immutable per process (the same invariant that makes the hostname
   // derivation pure) — pending a host port that carries the isolation identity.
+  // `mainDatabase` is the OPTIONAL explicit declaration that this instance is
+  // the dev main (cinatra#2172). It carries the instance's own database
+  // ENDPOINT (`host:port/database`, or a full connection string), and the
+  // reserved `cinatra-main` identity applies only when it matches. Unset ⇒ this
+  // instance is not the main and gets no tunnel identity from the fallthrough
+  // that used to exist.
   const devIsolationInputs = {
     dbUrl: process.env.SUPABASE_DB_URL,
     schema: process.env.SUPABASE_SCHEMA,
+    mainDatabase: process.env.CINATRA_DEV_MAIN_DATABASE,
   };
 
   const deps: TailscaleConnectorDeps = {

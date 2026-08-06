@@ -53,6 +53,7 @@
       "name": "Cinatra"
     },
     "displayName": "Tailscale",
+    "logo": "./cinatra/logo.svg",
     "dependencies": [],
     "serverEntry": "./register",
     "requestedHostPorts": [

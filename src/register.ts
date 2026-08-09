@@ -23,6 +23,7 @@ import { registerTailscaleConnector, type TailscaleConnectorDeps } from "./deps"
 import {
   getTailscaleConnectionStatus,
   getTailscaleFunnelUrlPreview,
+  getTailscaleFunnelUrlPreviewReason,
   TAILSCALE_OAUTH_FLAG_ENV,
 } from "./index";
 
@@ -152,6 +153,12 @@ export function register(ctx: ExtensionHostContext): void {
     impl: {
       getConnectionStatus: () => getTailscaleConnectionStatus(),
       getFunnelUrlPreview: () => getTailscaleFunnelUrlPreview(),
+      // OPTIONAL — not part of the `dev-tunnel-status` capability contract
+      // (cinatra#2534). The host's `getDevTunnelStatus` structurally probes
+      // for this getter on the SAME provider impl and degrades to `null` if
+      // it's absent, so adding it here is additive: no contract/SDK change,
+      // no behavior change for a host that predates this getter.
+      getFunnelUrlPreviewReason: () => getTailscaleFunnelUrlPreviewReason(),
     },
   });
 }

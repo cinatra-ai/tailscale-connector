@@ -95,10 +95,10 @@ export async function TailscaleConnectorPageImpl() {
               <ExternalLink href="https://login.tailscale.com/admin/settings/keys">
                 login.tailscale.com/admin/settings/keys
               </ExternalLink>{" "}
-              → <strong>Generate access token</strong>. Cinatra uses the token
-              to mint a tag-scoped, ephemeral auth-key for each clone via the
+              → <strong>Generate access token</strong>. Cinatra uses it to
+              mint a tag-scoped, ephemeral auth-key for each clone via the
               Tailscale API — the tag from the Setup tab&apos;s Tag field is
-              applied at auth-key mint time, not on the access token itself.
+              applied at auth-key mint time, not at token creation.
             </p>
           </div>
           {oauthEnabled ? (

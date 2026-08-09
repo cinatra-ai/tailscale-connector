@@ -203,6 +203,36 @@ export function getTailscaleFunnelUrlPreview(): string | null {
 }
 
 /**
+ * Why `getTailscaleFunnelUrlPreview()` returned `null`, as the connector's
+ * own stable code (cinatra#2534) — `DEV_TAILSCALE_UNREGISTERED_CODE` /
+ * `DEV_TAILSCALE_IDENTITY_CONFLICT_CODE` from `tailscale-hostname.mjs` — or
+ * `null` when a preview exists, or the tailnet just hasn't resolved yet (that
+ * cause has no minted code yet; the host's cause-agnostic copy still covers
+ * it, see cinatra#2534's `funnel-preview-notice.ts`).
+ *
+ * A SEPARATE read from `getTailscaleFunnelUrlPreview`, not a cached
+ * side-channel of it: both re-run the same pure, no-network identity
+ * classification over the same inputs, so calling them independently (as the
+ * host's optional-getter probe does — see `register.ts` and cinatra's
+ * `dev-tunnel-status.ts`) is consistent FOR THE SAME INPUTS — there is no
+ * shared mutable state between the two calls to desync. (Persisted local
+ * settings could in principle change between the two calls within one status
+ * read; that is not a new risk this getter introduces — `getConnectionStatus`
+ * and `getFunnelUrlPreview` already read the same mutable local settings
+ * independently of each other today.)
+ * Additive: no existing export's signature changes, and the host degrades to
+ * `null` automatically if this getter is ever absent.
+ */
+export function getTailscaleFunnelUrlPreviewReason(): string | null {
+  const settings = readLocalSettings();
+  const tailnet = settings.tailnet;
+  if (!tailnet || tailnet === "-") return null;
+  const { dbUrl, schema, mainDatabase } = getTailscaleDeps().readDevIsolationInputs();
+  const identity = classifyDevTailscaleIdentity({ dbUrl, schema, mainDatabase });
+  return identity.ok ? null : identity.code;
+}
+
+/**
  * Default clone-tag suggestion offered to the operator in the form.
  *
  * Resolution order:

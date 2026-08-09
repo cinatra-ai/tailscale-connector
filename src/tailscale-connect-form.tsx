@@ -391,15 +391,8 @@ export function TailscaleConnectForm({
                 />
               </InputGroup>
               <FieldDescription className="leading-6">
-                Generate at{" "}
-                <ExternalLink href="https://login.tailscale.com/admin/settings/keys">
-                  login.tailscale.com/admin/settings/keys
-                </ExternalLink>
-                . Click <strong>Generate access token</strong> and, on the
-                token creation page, set <strong>Tags</strong> to whichever
-                tag you enter below. If the tag doesn&apos;t exist yet, open
-                Access Controls and add a <code>tagOwners</code> entry first
-                (e.g. owner <code>autogroup:admin</code>).
+                A <code>tskey-api-…</code> token for use with the tag below.
+                See the Help tab for how to generate one.
               </FieldDescription>
             </Field>
             )}

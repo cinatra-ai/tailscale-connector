@@ -1,0 +1,69 @@
+{
+  "$comment": "Named, versioned machine-verification suite for cinatra-ai/tailscale-connector — the gate-arm half of the truthful verification-record model (the Truthful Attribution protocol §4). The truthful-attribution-gate reads THIS file at the merged SHA (authoritative, no TOCTOU) when a merge record carries a Gate-suite arm: the cited suiteId@version must equal this file's, the Accountable trailer must equal accountable{github,name,email}, and every requiredContexts entry must have concluded success on the reviewed head. requiredContexts names exactly the contexts this repository's main ruleset requires, each pinned to the SHA this repository's own caller workflow pins for that reusable workflow (the gate matches exactly, fail closed), plus the truthful-attribution-gate context by name — its engine pin lives in the caller's uses: line (itself a high-risk path), so that entry carries callerPath and allowedEvents and no workflow/pinned pair. highRiskPaths EXTENDS the central cinatra-ai/ci defaults (the gate verifies the effective set is a superset). High-risk changes (this file is itself one — see **/gate-suite.json) require the HUMAN arm at tier=maintainer; the gate arm alone is rejected, so this file's birth carries a maintainer Reviewed-by, not a self-blessing gate arm. lastAuditedAt + auditEvidence are the §4 monthly-audit record; the Accountable engineer re-audits monthly and bumps BOTH coupled in one commit (the gate warns >35d, fails the gate arm >65d; the human arm is always still available). version is bumped whenever the pinned content changes (suiteId@version must be immutable per content).",
+  "suiteId": "tailscale-connector-core",
+  "version": "2026.09.1",
+  "accountable": {
+    "name": "Sandro Groganz",
+    "email": "sandro@cinatra.ai",
+    "github": "groganz"
+  },
+  "requiredContexts": [
+    {
+      "context": "actions-pinned-gate / actions-pinned-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/actions-pinned-gate.yml",
+      "pinned": "4c903fe9ca71ad47752a2bc92b72893e5f7c9814"
+    },
+    {
+      "context": "gitignore-gate / gitignore-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/gitignore-gate.yml",
+      "pinned": "4c903fe9ca71ad47752a2bc92b72893e5f7c9814"
+    },
+    {
+      "context": "source-leak-gate / source-leak-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/source-leak-gate.yml",
+      "pinned": "00ac7b92c2ca1ca291a1824d743cbd00c4a3e48e"
+    },
+    {
+      "context": "secret-scan-gate / secret-scan-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/secret-scan-gate.yml",
+      "pinned": "a8677e50ba02fcb11929e94c70fb5ba96a8ea3ae"
+    },
+    {
+      "context": "truthful-attribution-gate / truthful-attribution-gate",
+      "callerPath": ".github/workflows/truthful-attribution-gate.yml",
+      "allowedEvents": ["pull_request", "push", "merge_group"]
+    }
+  ],
+  "highRiskPaths": [
+    "**/auth/**",
+    "**/permissions/**",
+    "**/session*",
+    "**/session/**",
+    "src/lib/auth*",
+    "src/lib/auth/**",
+    "**/webhooks/**/verify*",
+    "**/*signature*verif*",
+    "**/secrets/**",
+    "**/migrations/**",
+    "**/schema.prisma",
+    "**/schema.sql",
+    "**/*.migration.*",
+    ".github/**",
+    "**/CODEOWNERS",
+    "**/release*.sh",
+    "**/publish*.sh",
+    "scripts/release/**",
+    "scripts/publish/**",
+    "**/gate-suite.json",
+    "config/high-risk-defaults.json",
+    ".github/workflows/truthful-attribution-gate.yml",
+    "packages/sdk-extensions/**",
+    "**/extension-loader/**",
+    "**/trust-gate/**",
+    "**/signature-gate/**",
+    "**/capability-registry/**",
+    "**/transport-registry/**"
+  ],
+  "lastAuditedAt": "2026-09-15",
+  "auditEvidence": "2026-09-15, the birth of this suite on its own pull request (engineering#671, under engineering#669): every listed context was read from this repository's main ruleset and each pin from this repository's own caller workflow at head 20f1c95e61a87a88169707a85b515d0a46b91c2f, and the listed contexts are the ones the merge road reads green on this pull request's head before it merges."
+}

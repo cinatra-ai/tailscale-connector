@@ -62,7 +62,14 @@
     "**/trust-gate/**",
     "**/signature-gate/**",
     "**/capability-registry/**",
-    "**/transport-registry/**"
+    "**/transport-registry/**",
+    "docs-site/astro.config.mjs",
+    "docs-site/src/content.config.ts",
+    "docs-site/integrations-registry.json",
+    "**/integrations-registry.json",
+    "scripts/sync-docs.mjs",
+    "scripts/docs-contract-gate.mjs",
+    "scripts/lib/docs-contract-rules.mjs"
   ],
   "lastAuditedAt": "2026-09-15",
   "auditEvidence": "2026-09-15, the birth of this suite on its own pull request (engineering#671, under engineering#669): every listed context was read from this repository's main ruleset and each pin from this repository's own caller workflow at head 20f1c95e61a87a88169707a85b515d0a46b91c2f, and the listed contexts are the ones the merge road reads green on this pull request's head before it merges."

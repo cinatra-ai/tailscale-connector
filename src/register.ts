@@ -16,6 +16,7 @@
 import type {
   ExtensionHostContext,
   HostConnectorConfigService,
+  HostDevInstanceIsolation,
   HostInstanceIdentityService,
   NangoSystemSurface,
 } from "@cinatra-ai/sdk-extensions";
@@ -28,6 +29,33 @@ import {
 } from "./index";
 
 const PACKAGE_NAME = "@cinatra-ai/tailscale-connector";
+
+// Markers for a configured value whose endpoint the host could not read. The
+// database marker has no database scheme and the declaration marker has no
+// slash, so the classifier's parsers answer empty and it keeps its refusal for
+// a value that is present but unusable.
+const UNRESOLVABLE_DATABASE = "unresolvable://";
+const UNUSABLE_MAIN_DECLARATION = "unresolvable";
+
+// Maps the host's credential-free isolation record to the classifier's inputs.
+function mapDevInstanceIsolation(record: HostDevInstanceIsolation | null | undefined): {
+  dbUrl?: string;
+  schema?: string;
+  mainDatabase?: string;
+} {
+  if (!record) return {};
+  const dbUrl = !record.databaseConfigured
+    ? undefined
+    : typeof record.databaseEndpoint === "string"
+      ? `postgresql://${record.databaseEndpoint}`
+      : UNRESOLVABLE_DATABASE;
+  const mainDatabase = !record.mainDeclared
+    ? undefined
+    : typeof record.mainEndpoint === "string"
+      ? record.mainEndpoint
+      : UNUSABLE_MAIN_DECLARATION;
+  return { dbUrl, schema: record.schema ?? undefined, mainDatabase };
+}
 
 function hostService<T>(ctx: ExtensionHostContext, capability: string): T {
   const provider = ctx.capabilities.resolveProviders(capability)[0];
@@ -60,22 +88,15 @@ export function register(ctx: ExtensionHostContext): void {
   };
 
   // Host/extension boundary (cinatra-ai/cinatra#978): runtime values reach the
-  // connector's modules through injected deps, never raw `process.env` reads in
-  // runtime code. The dev-instance isolation inputs (the heavy-clone DB URL /
-  // light-worktree schema) are captured ONCE here at the composition root —
-  // they are immutable per process (the same invariant that makes the hostname
-  // derivation pure) — pending a host port that carries the isolation identity.
-  // `mainDatabase` is the OPTIONAL explicit declaration that this instance is
-  // the dev main (cinatra#2172). It carries the instance's own database
-  // ENDPOINT (`host:port/database`, or a full connection string), and the
-  // reserved `cinatra-main` identity applies only when it matches. Unset ⇒ this
-  // instance is not the main and gets no tunnel identity from the fallthrough
-  // that used to exist.
-  const devIsolationInputs = {
-    dbUrl: process.env.SUPABASE_DB_URL,
-    schema: process.env.SUPABASE_SCHEMA,
-    mainDatabase: process.env.CINATRA_DEV_MAIN_DATABASE,
-  };
+  // connector's modules through injected deps, never raw environment reads in
+  // runtime code. The dev-instance isolation inputs (the heavy-clone database
+  // endpoint / light-worktree schema / the optional declaration that this
+  // instance is the dev main, cinatra#2172) arrive from the host's ambient
+  // runtime port and are asked AT CALL TIME: registration touches nothing of
+  // the port, so activation stays probe-safe. The port's credential-free
+  // record is mapped to the classifier's three inputs by
+  // `mapDevInstanceIsolation` below. Absent member or a null answer ⇒ no
+  // inputs ⇒ this instance gets no tunnel identity.
 
   const deps: TailscaleConnectorDeps = {
     readConnectorConfigFromDatabase: (connectorId, fallback) =>
@@ -87,7 +108,7 @@ export function register(ctx: ExtensionHostContext): void {
     // port (host-mediated env access; the host's flag grammar accepts
     // "1"/"true"). Resolved at CALL time like the other host services.
     isOAuthModeEnabled: () => ctx.runtime.flag(TAILSCALE_OAUTH_FLAG_ENV),
-    readDevIsolationInputs: () => devIsolationInputs,
+    readDevIsolationInputs: () => mapDevInstanceIsolation(ctx.runtime.devInstanceIsolation?.()),
     // Members delegate to the nango-system surface at CALL time (the key map
     // is a getter for the same reason). Inputs are cast at this boundary where
     // the surface owns the wider shape (required displayName /

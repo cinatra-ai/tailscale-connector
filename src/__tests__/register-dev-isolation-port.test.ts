@@ -64,7 +64,7 @@ function outcome(read: () => string) {
 
 const portRoad = () => outcome(() => getTailscaleDevHostname());
 const envRoad = (inputs: { dbUrl?: string; schema?: string; mainDatabase?: string }) =>
-  outcome(() => deriveDevTailscaleHostname(inputs));
+  outcome(() => deriveDevTailscaleHostname({ dbUrl: inputs.dbUrl, schema: inputs.schema, mainDatabase: inputs.mainDatabase }));
 
 describe("register(ctx) — isolation inputs through the runtime port", () => {
   it("A1 a clone-database record gives the hostname of the equivalent connection string", () => {

@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { Clock, Hash, KeyRound, ShieldCheck, Fingerprint } from "lucide-react";
-import { Alert, AlertDescription } from "./components/ui/alert";
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
-import { CardContent, CardFooter } from "./components/ui/card";
-import { ExternalLink } from "./components/ui/external-link";
-import { Field, FieldDescription, FieldLabel } from "./components/ui/field";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "./components/ui/input-group";
+import { Alert, AlertDescription } from "@cinatra-ai/design-primitives";
+import { Badge } from "@cinatra-ai/design-primitives";
+import { Button } from "@cinatra-ai/design-primitives";
+import { CardContent, CardFooter } from "@cinatra-ai/design-primitives";
+import { ExternalLink } from "./ui/external-link";
+import { Field, FieldDescription, FieldLabel } from "@cinatra-ai/design-primitives";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@cinatra-ai/design-primitives";
 import { useNotify } from "@cinatra-ai/sdk-ui";
 import {
   clearTailscaleConnectionAction,

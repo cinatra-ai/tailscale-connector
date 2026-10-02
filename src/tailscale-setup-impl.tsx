@@ -2,8 +2,8 @@ import "server-only";
 import type { Metadata } from "next";
 import { ConnectorSetupPage } from "@cinatra-ai/sdk-ui/connector-setup-page";
 import { Tabs, TabsContent, TabsListRow, TabsTrigger } from "@cinatra-ai/sdk-ui/tabs";
-import { ExternalLink } from "./components/ui/external-link";
-import { Card, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
+import { ExternalLink } from "./ui/external-link";
+import { Card, CardDescription, CardHeader, CardTitle } from "@cinatra-ai/design-primitives";
 import {
   getDefaultTailscaleCloneTag,
   getTailscaleConnectionStatus,
@@ -52,7 +52,7 @@ export async function TailscaleConnectorPageImpl() {
           forceMount
           className="mt-6 data-[state=inactive]:hidden"
         >
-          <Card className="border-line bg-surface backdrop-blur-none">
+          <Card>
             <CardHeader>
               <CardTitle>
                 {oauthEnabled ? "Tailscale connection" : "Tailscale API access token"}

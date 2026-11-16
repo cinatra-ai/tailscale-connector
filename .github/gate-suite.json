@@ -1,7 +1,7 @@
 {
   "$comment": "Named, versioned machine-verification suite for cinatra-ai/tailscale-connector — the gate-arm half of the truthful verification-record model (the Truthful Attribution protocol §4). The truthful-attribution-gate reads THIS file at the merged SHA (authoritative, no TOCTOU) when a merge record carries a Gate-suite arm: the cited suiteId@version must equal this file's, the Accountable trailer must equal accountable{github,name,email}, and every requiredContexts entry must have concluded success on the reviewed head. requiredContexts names exactly the contexts this repository's main ruleset requires, each pinned to the SHA this repository's own caller workflow pins for that reusable workflow (the gate matches exactly, fail closed), plus the truthful-attribution-gate context, which carries callerPath and allowedEvents together with the reusable workflow it calls and the engine sha its caller's uses: line pins (that caller is itself a high-risk path). highRiskPaths EXTENDS the central cinatra-ai/ci defaults (the gate verifies the effective set is a superset). High-risk changes (this file is itself one — see **/gate-suite.json) require the HUMAN arm at tier=maintainer; the gate arm alone is rejected, so this file's birth carries a maintainer Reviewed-by, not a self-blessing gate arm. lastAuditedAt + auditEvidence are the §4 monthly-audit record; the Accountable engineer re-audits monthly and bumps BOTH coupled in one commit (the gate warns >35d, fails the gate arm >65d; the human arm is always still available). version is bumped whenever the pinned content changes (suiteId@version must be immutable per content).",
   "suiteId": "tailscale-connector-core",
-  "version": "2026.09.2",
+  "version": "2026.11.1",
   "accountable": {
     "name": "Sandro Groganz",
     "email": "sandro@cinatra.ai",
@@ -31,7 +31,7 @@
     {
       "context": "truthful-attribution-gate / truthful-attribution-gate",
       "workflow": "cinatra-ai/ci/.github/workflows/truthful-attribution-gate.yml",
-      "pinned": "1e40675e1642dcc32d195f27b3deb285b4d3d6fc",
+      "pinned": "7c767fe7fabc5e4fb93e2142987a2b2dff502014",
       "callerPath": ".github/workflows/truthful-attribution-gate.yml",
       "allowedEvents": ["pull_request", "push", "merge_group"]
     }
@@ -73,6 +73,6 @@
     "scripts/docs-contract-gate.mjs",
     "scripts/lib/docs-contract-rules.mjs"
   ],
-  "lastAuditedAt": "2026-09-15",
-  "auditEvidence": "2026-09-15, the birth of this suite on its own pull request (engineering#671, under engineering#669): every listed context was read from this repository's main ruleset and each pin from this repository's own caller workflow at head 20f1c95e61a87a88169707a85b515d0a46b91c2f, and the listed contexts are the ones the merge road reads green on this pull request's head before it merges."
+  "lastAuditedAt": "2026-11-14",
+  "auditEvidence": "2026-11-14 re-audit: all 5 requiredContexts exist at main - actions-pinned-gate.yml, gitignore-gate.yml, source-leak-gate.yml, secret-scan-gate.yml, truthful-attribution-gate.yml - and the caller jobs with the called jobs of the same ids produce the declared context names; pins 4c903fe9 (actions-pinned-gate), 4c903fe9 (gitignore-gate), 00ac7b92 (source-leak-gate), a8677e50 (secret-scan-gate), 7c767fe7 (truthful-attribution-gate) equal their callers' uses: SHAs and, where the caller passes one, its ref: input (the secret-scan-gate caller passes no ref: input); the truthful-attribution-gate callerPath equals that caller's own path and its allowedEvents (pull_request, push, merge_group) cover that caller's triggers (pull_request, push), merge_group declared with no such trigger; 7c767fe7 is a supported engine SHA of the merge road (grant revision 3) and the attribution caller runs the same commit; the central high-risk defaults read version 2026.06 with 35 globs at each of the nine supported engine SHAs and all 35 are in the 35 highRiskPaths (none missing; 0 repository extensions); accountable unchanged (Sandro Groganz, sandro@cinatra.ai, groganz); recorded, not changed: the active branch ruleset requiring actions-pinned-gate, gitignore-gate, kind-gates, secret-scan-gate, source-leak-gate, and every suite context concluded success at the main head read. Commands: checkout reads of the suite and its callers, git reads of the called reusable workflows at their pins and of config/high-risk-defaults.json at each supported engine, ruleset and check-run reads. The attribution engine advances from 1e40675e (grant revision 2) to 7c767fe7 (grant revision 3) in the suite row and in the caller's uses: line and ref: input, all three in one commit, with mode warn and the caller's other inputs and its permissions unchanged; the version moves from 2026.09.2 to 2026.11.1, as a changed pin is a material suite change."
 }
